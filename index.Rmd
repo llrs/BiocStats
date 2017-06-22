@@ -1,7 +1,5 @@
 ---
 title: "Bioconductor stats"
-abstract: >
-  Analysis of the stats of the packages in Bioconductor project
 date: "`r base::date()`"
 output:
   BiocStyle::html_document2:
@@ -12,33 +10,115 @@ output:
 author:
 - name: Lluís Revilla
 ---
-```{r knitrsetup, message=FALSE, warning=FALSE, include=FALSE}
+
+```{r setup, include=FALSE}
 knitr::opts_knit$set(root.dir = ".")
 knitr::opts_chunk$set(collapse = TRUE, warning = TRUE, fig.wide = TRUE)
-BiocStyle::markdown()
 library("BiocStyle")
 library("ggplot2")
 library("data.table")
-library("dtplyr")
 library("zoo")
-library("scales")
-library("lubridate")
 ```
 
 # Introduction
 
-Bioconductor provide [stats of the project](https://www.bioconductor.org/packages/stats/). If you are curious about what is the evolution of the downloads of a certain package or how does the downloads progress with time this is the right place
+Bioconductor provide [stats of the project](https://www.bioconductor.org/packages/stats/). If you are curious about what is the evolution of the downloads of a certain package or how does the downloads progress with time this is the right place.
 
-# Load data
+Bioconductor classifies the packages in three categories:
 
-First we read the latest data from the Bioconductor project. There are two files, one with the download stats from 2009 until today and another with the download stats of the software packages, we will only use the first one:
+ - [Software](http://bioconductor.org/packages/release/BiocViews.html#___Software)
+ - [Experimental data](http://bioconductor.org/packages/release/BiocViews.html#___AnnotationData)
+ - [Annotation](http://bioconductor.org/packages/release/BiocViews.html#___ExperimentData)
 
-```{r stats}
-web <- "https://www.bioconductor.org/packages/stats/bioc/"
-stats <- read.delim(paste0(web, "bioc_pkg_stats.tab"), 
-                    colClasses = c("factor", "character", "character", "numeric", "numeric"))
-stats <- as.data.table(stats)
+For each category a page with the stats of the packages of each category is provided, together with a file:
+
+ - [Software stats](http://bioconductor.org/packages/stats/)
+ - [Experimental data stats](http://bioconductor.org/packages/stats/data-experiment.html)
+ - [Annotation stats](http://bioconductor.org/packages/stats/data-annotation.html)
+ 
+
+As some packages seem to be classified in several categories we first need to classify them.
+
+```{r download}
+web <- "https://www.bioconductor.org/packages/stats/" # Base url
+colClasses <- c("factor", "character", "character", "numeric", "numeric")
+software <- read.delim(paste0(web, "bioc/bioc_pkg_stats.tab"), 
+                    colClasses = colClasses)
+experimental <- read.delim(paste0(web, "data-experiment/experiment_pkg_stats.tab"), 
+                    colClasses = colClasses)
+annotation <- read.delim(paste0(web, "data-annotation/annotation_pkg_stats.tab"), 
+                    colClasses = colClasses)
+# Convert to data.tables
+setDT(software)
+setDT(experimental)
+setDT(annotation)
+# Assing Category
+software[, Category := "Software"]
+experimental[, Category := "Experimental"]
+annotation[, Category := "Annotation"]
+# Bind
+stats <- rbind(software, experimental, annotation)
 stats <- stats[Month != "all", , ]
+```
+
+# Initial exploratory analysis
+
+We do a little visual exploration of the total downloads per category:
+```{r downloads1}
+theme_bw <- theme_bw(base_size = 16)
+ggplot(stats[ , .(Downloads = sum(Nb_of_downloads)), by = c("Category")]) +
+  geom_bar(aes(Category, log10(Downloads), fill = Category), stat = "identity") + 
+  theme_bw +
+  ylab("log10(Downloads per category)") + 
+  ggtitle("Total downloads per category")
+```
+We can see that Software packages are more downloaded, and Annotation pakcages the least. But is this due to some packages or in general:
+```{r boxplot1, fig.cap="Boxplot of downloads per package and category."}
+ggplot(stats[ , .(Downloads = log10(sum(Nb_of_downloads))), by = c("Package", "Category")]) +
+  geom_violin(aes(Category, Downloads, fill = Category)) + 
+  theme_bw +
+  ylab("log10(Downloads per package)")
+```
+It seems that Software packages are as much downloaded as Experimental data and Annotations are less The problem is that some packages are erroniously classified in several categories as you can see if we calculate the overlap between packages:
+```{r intersect}
+length(intersect(software$Package, experimental$Package))
+length(intersect(software$Package, annotation$Package))
+length(intersect(experimental$Package, annotation$Package))
+```
+We need to classify better, we will use the total number of downloads to put them in a single category based in the total downloads for each category:
+```{r reclassify}
+stats[, .(Packages = length(unique(Package))), by = Category]
+# Calculates number of downloads per package and category
+max_cat <- stats[, .(Total = sum(Nb_of_downloads)), by = c("Package", "Category")]
+# Select the category with max downloads per package
+max_cat <- max_cat[, .(Category = Category[which.max(Total)]), by = Package]
+# Join by name
+stats <- stats[max_cat, , on = "Package"]
+# Substitute name
+stats <- stats[, -"Category"]
+names(stats)[names(stats) == "i.Category"] <- "Category"
+stats[, .(Packages = length(unique(Package))), by = Category]
+```
+Now all the packages are assigned to one category. We look at the boxplot to see if it has changed something:
+```{r downloads2, fig.cap="Total number of downloads."}
+theme_bw <- theme_bw(base_size = 16)
+ggplot(stats[ , .(Downloads = log10(sum(Nb_of_downloads))), by = c("Category")]) +
+  geom_bar(aes(Category, Downloads, fill = Category), stat = "identity") + 
+  theme_bw +
+  ylab("log10(Downloads per category)") + 
+  ggtitle("Total downloads per category")
+```
+
+```{r boxplot2, fig.cap="Boxplot of downloads per package and category after correction."}
+ggplot(stats[ , .(Downloads = log10(sum(Nb_of_downloads))), by = c("Package", "Category")]) +
+  geom_violin(aes(Category, Downloads, fill = Category)) + 
+  theme_bw +
+  ylab("log10(Downloads per package)")
+```
+We can observe that many packages that where in Annotation are now considered Experimental, also some Software packages changed of category.
+
+To work more easily, we convert the months to a date:
+```{r date}
 monthsConvert <- function(x) {
   if (x == "Jan") {
     "01"
@@ -68,229 +148,63 @@ monthsConvert <- function(x) {
 }
 stats$Month <- sapply(stats$Month, monthsConvert)
 stats$Date <- as.POSIXct(as.yearmon(paste(stats$Year, stats$Month, sep = "-")), frac = 1)
-head(stats)
+bioc_packages <- c("BiocInstaller", "Biobase", "BiocGenerics", "S4Vectors", "IRanges", "AnnotationDbi")
+stats <- stats[Nb_of_downloads != 0, ]
+save(stats, bioc_packages, monthsConvert, file="stats.RData")
 ```
 
-There have been `r length(unique(stats$Package))` packages in Bioconductor. Some have been added recently and some later.
-
-# Packages
-
-## Number
-
-First we explore the number of packages being downloaded by month:
-```{r number, fig.cap="Packages in Bioconductor with downloads"}
+We can observe the number of packages downloaded for each category along time:
+```{r downloaded, fig.cap="Packages downloaded per date and category. For each category the number of packages downloaded are displayed"}
 stats2 <- stats[Nb_of_downloads != 0, ] # We remove rows of packages with a download in that month.
-ggplot(stats2[, .(Number = .N), by = Date], aes(Date, Number)) +
-  geom_bar(stat = "identity") + 
-  theme_bw() +
+theme <- theme(axis.text.x = element_text(angle = 60, hjust = 1))
+scal <- scale_x_datetime(date_breaks = "3 months")
+ggplot(stats2[, .(Downloaded = .N), by = c("Date", "Category")], aes(Date, Downloaded, color = Category)) +
+  geom_line() +
+  theme_bw +
   ggtitle("Packages downloaded") +
-  scale_x_datetime(date_breaks = "3 months") +
-  theme(axis.text.x=element_text(angle=60, hjust=1)) + 
-  guides(col=FALSE)
+  theme +
+  scal
 ```
-The number of packages being downloaded is increasing with time almost exponentially. Partially explained with the incorporation of new packages
-```{r number2, fig.cap="Downloads of packages"}
-ggplot(stats2[, .(Number = sum(Nb_of_downloads)), by = Date], aes(Date, Number)) +
-  geom_bar(stat = "identity") + 
-  theme_bw() +
-  ggtitle("Downloads") +
-  scale_x_datetime(date_breaks = "3 months") +
-  theme(axis.text.x=element_text(angle=60, hjust=1)) + 
-  guides(col=FALSE)
+And the number of download per month for each category:
+```{r downloas, fig.cap="Downloads per date and category. For each category the downloads are displayed"}
+ggplot(stats2[, .(Downloads = sum(Nb_of_downloads)), by = c("Date", "Category")], aes(Date, Downloads, color = Category)) +
+  geom_line() +
+  theme_bw +
+  ggtitle("Packages downloaded") +
+  theme +
+  scal
 ```
-Even if the number of packages increase exponentially, the number of the downloads from 2011 grows linearly with time. Which indicates that each time a software package must compete with more packages to be downloaded.
-
-```{r number3, fig.cap="Downloads of packages per package. The error bar indicates the 95% confidence interval."}
+The number of packages in all three categories increases. In experimental packages it seems that there is a plateau effect, while in Software the number of packages is growing. Annotation packages have peaks of many different packages being downloaded at certain months.
+In the contrary the number of downloads in the Annotation category remains relatively stable compared to Experimental and Software packages, which since 2011 increase linearly.with time at a lower peace of the downloaded packages. This suggest that competency for downloads in the software has increased. Looking at the number of downloads per package along time it contradicts our hypothesis:
+```{r competitions, fig.cap="Downloads per package. MEan of the downloads per package per category plus the error bars at the 95% CI."}
 pd <- position_dodge(0.1)
 ggplot(stats2[, .(Number = mean(Nb_of_downloads), 
                   ymin = mean(Nb_of_downloads)-1.96*sd(Nb_of_downloads)/sqrt(.N),
                   ymax = mean(Nb_of_downloads)+1.96*sd(Nb_of_downloads)/sqrt(.N)), 
-              by = Date], aes(Date, Number)) +
+              by = c("Date", "Category")], aes(Date, Number, color = Category)) +
   geom_errorbar(aes(ymin = ymin, ymax = ymax), width=.1, position=pd) +
-  geom_bar(stat = "identity") + 
-  theme_bw() +
+  geom_point() + 
+  geom_line() +
+  theme_bw +
   ggtitle("Downloads") +
   ylab("Mean download for a package") +
-  scale_x_datetime(date_breaks = "3 months") +
-  theme(axis.text.x=element_text(angle=60, hjust=1)) + 
-  guides(col=FALSE)
+  xlab("") + 
+  theme +
+  scal
 ```
-Here we can apreciate that the number of downloads per package hasn't changed much with time. If something, now there is more dispersion between packages downloads. 
+We can see that for Annotation package the mean download per packages is the same. Experimental packages had much larger variation, but nowadays very few experimental packages are used. In software packages there is much larger variation since two years, but traditionally it had more variation and higher downloads per package than any other category.
 
-## Incorporations
+We will use this dataset for further analysis for each category:
 
-This might be due to an increase in the usage of packages or that new packages bring more users. We start knowing how many packages has been introduced in Bioconductor each month.
-
-```{r new, fig.cap="New packages"}
-today <- base::date()
-year <- substr(today, 21, 25)
-month <- monthsConvert(substr(today, 5, 7))
-incorporation <- stats2[ , .SD[which.min(Date)], by = Package, .SDcols = "Date"]
-histincorporation <- incorporation[, .(Number = .N), by = Date, ]
-ggplot(histincorporation, aes(Date, Number)) + 
-  geom_bar(stat="identity") + 
-  theme_bw() + 
-  ggtitle("Packages with first download") +
-  scale_x_datetime(date_breaks = "3 months") +
-  theme(axis.text.x=element_text(angle=60, hjust=1))
-```
-We can see that there were more than 350 packages before 2009 in Bioconductor, and since them occasionally there is a raise to 50 new downloads (Which would be new packages being added).
-
-## Removed
-
-Using a similar procedure we can approximate the packages deprecated and removed each month. In this case we look for the last date a package was downloaded, excluding the current month:
-
-```{r deprecated, fig.cap="Aproximation to deprecated packages per month"}
-deprecation <- stats2[, .SD[which.max(Date)], by = Package, .SDcols = c("Date",  "Year", "Month")]
-deprecation <- deprecation[Month != month & Year == Year, , .SDcols = "Date"] # Before this month
-histDeprecation <- deprecation[, .(Number = .N), by = Date, ]
-ggplot(histDeprecation, aes(Date, Number)) + 
-  geom_bar(stat = "identity") + 
-  theme_bw() + 
-  ggtitle("Packages without downloads") +
-  scale_x_datetime(date_breaks = "3 months") +
-  theme(axis.text.x=element_text(angle=60, hjust=1))
-```
-Here we can see the packages whose last download was in certain month, assuming that this means they are deprecated. It can happen that a package is no longer downloaded but is still in Bioconductor repository, this would be the reason of the spike to 80 packages as per last month.
-In total there are `r nrow(incorporation) - nrow(deprecation)) packages downloaded. 
-We further explore how many time between the incorporation of the package and the last download.
-```{r time.package, fig.cap="Time of packages between first and last download"}
-df <- merge(incorporation, deprecation, by = "Package")
-timeBioconductor <- unclass(df$Date.y-df$Date.x)/(365*60*60*24) # Transform to years
-hist(timeBioconductor, main = "Time in Bioconductor", xlab = "Years")
-abline(v = mean(timeBioconductor), col = "red")
-abline(v = median(timeBioconductor), col = "green")
-```
-We can see that most deprecated packages are less than a year (I would say around two releases) and some stay on Bioconductor up to 6 years  before deprecation. But those packages not deprecated how do they do in Bioconductor?
-
-# Packages downloads
-
-## Ratio downloads per IP
-We can start comparing the number of downloads (different from 0) by how many IPs download each package.
-```{r downloadsMonth, fig.cap = "Downloads and distinct IPs of all months and packages", warning=FALSE}
-ggplot(stats2, aes(Nb_of_distinct_IPs, Nb_of_downloads, col = Package)) + 
-  geom_point() + 
-  theme_bw() + 
-  geom_smooth(method = "lm") + 
-  xlab("Number of distinct IPs") + 
-  ylab("Number of downloads") + 
-  ggtitle("Downloads by different IP") +
-  geom_abline(slope = 2) + 
-  guides(col=FALSE)
-```
-Not surprisingly most of the package has two downloads from the same IP, one for each Bioconductor release (black line). However, there are some packages where few IPs download many times the same package, which may indicate that these packages are mostly installed in a few locations. 
-```{r ratio}
-ratio <- stats2[, .(slope = coef(lm(Nb_of_downloads~Nb_of_distinct_IPs))[2]), by = Package]
-ratio <- ratio[order(slope, decreasing = TRUE),]
-ratio[slope >= 2, ] 
-```
-We can see that the package with more downloads from the same IP is `r Biocpkg("mosaics")`, followed by, `r Biocpkg("flowCore")`, `r Biocpkg("xcms")` and the forth one is `r Biocpkg("mzR")`. The first one is for Chip-seq, the second one for flow cytometry, and the third  and forth one is for chromatographically separated and single-spectra mass spectral data, maybe few locations use these packages.
-
-I am curious how are the default packages of Bioconductor downloaded, let's see where they are:
-```{r bioconductor}
-bioc_packages <- c("BiocInstaller", "Biobase", "BiocGenerics", "S4Vectors", "IRanges", "AnnotationDbi")
-ratio[Package %in% bioc_packages, ]
-```
-Only `r Biocpkg("BiocInstaller")` is installed more than once per IP. 
-
-Now we explore if there is some seasons cycles in the downloads, as in figure \@ref(number2) seems to be some cicles. 
-
-## By date
-
-First we can explore the number of IPs per month downloading each package:
-```{r date1, fig.cap="Distinct IP per package"}
-ggplot(stats2, aes(Date, Nb_of_distinct_IPs, col = Package)) + 
-  geom_line() + 
-  theme_bw() +
-  ggtitle("IPs") +
-  ylab("Distinct IP downloads") +
-  scale_x_datetime(date_breaks = "3 months") +
-  theme(axis.text.x=element_text(angle=60, hjust=1)) + 
-  guides(col=FALSE)
-```
-As we can see there are two groups of packages at the 2009 years, some with low number of IPs and some with bigger number of IPs. As time progress the number of distinct IPs increases for some packages. 
-But is the spread in IPs associated with an increase in downloads? 
-```{r date2, fig.cap="Downloads per year"}
-ggplot(stats2, aes(Date, Nb_of_downloads, col = Package)) + 
-  geom_line() + 
-  theme_bw() +
-  ggtitle("Downloads per IP") +
-  ylab("Downloads") +
-  scale_x_datetime(date_breaks = "3 months") +
-  theme(axis.text.x=element_text(angle=60, hjust=1)) + 
-  guides(col=FALSE)
-```
-Surprisingly some package have a big outburst of downloads to 400k downloads, others to just 100k downloads. But lets focus on the lower end:
-```{r date2b, fig.cap="Downloads per year"}
-ggplot(stats2, aes(Date, Nb_of_downloads, col = Package)) + 
-  geom_line() + 
-  theme_bw() +
-  ggtitle("Downloads per package every three months") +
-  ylab("Downloads") +
-  scale_x_datetime(date_breaks = "3 months") +
-  ylim(0, 50000)+
-  theme(axis.text.x=element_text(angle=60, hjust=1)) + 
-  guides(col=FALSE)
-```
-There are many packages close to 0 downloads each month, but most packages has less than 10000 downloads per month:
-```{r date2c, fig.cap="Downloads per year"}
-ggplot(stats2, aes(Date, Nb_of_downloads, col = Package)) + 
-  geom_line() + 
-  theme_bw() +
-  ggtitle("Downloads per package every three months") +
-  ylab("Downloads") +
-  scale_x_datetime(date_breaks = "3 months") +
-  ylim(0, 10000)+
-  theme(axis.text.x=element_text(angle=60, hjust=1)) + 
-  guides(col=FALSE)
-```
-As we can see, in general the month of the year also influences the number of downloads. So we have that from 2010 the factors influencing the downloads are the year, and the month. 
-
-Maybe there is a relationship between the downloads and the number of IPs per date
-```{r date3, fig.cap="Ratio downloads per IP per package"}
-ggplot(stats2, aes(Date, Nb_of_downloads/Nb_of_distinct_IPs, col = Package)) + 
-  geom_line() + 
-  theme_bw() +
-  ggtitle("IPs") +
-  ylab("Ratio") +
-  scale_x_datetime(date_breaks = "3 months") +
-  theme(axis.text.x=element_text(angle=60, hjust=1)) + 
-  guides(col=FALSE)
-```
-We can see some packages have ocasional raises of downloads per IP. But for small ranges we miss a lot of packages:
-
-```{r date4, fig.cap="Ratio downloads per IP per package", warning=FALSE}
-ggplot(stats2, aes(Date, Nb_of_downloads/Nb_of_distinct_IPs, col = Package)) + 
-  geom_line() + 
-  theme_bw() +
-  ggtitle("IPs") +
-  ylab("Ratio") +
-  scale_x_datetime(date_breaks = "3 months") +
-  theme(axis.text.x=element_text(angle=60, hjust=1)) + 
-  guides(col=FALSE) +
-  ylim(1, 5)
-```
-But most of the packages seem to be more or less constant and around 2.
-
-# Models
-
-One problem to compare the evolution of the packages is that they started at different moments, and as seen with time the number of downloads have been increasing as well as the number of packages. So we need to normalize the starting dates:
-
-```{r normalizeDate, fig.cap = "Normalization of dates and downloads"}
-norm <- stats2[, .(Norm = as.numeric(Date)/as.numeric(max(Date)), 
-                   Downloads = Nb_of_downloads/max(Nb_of_downloads)), by = Package]
-ggplot(norm, aes(Norm, Downloads, col = Package)) + 
-  geom_line() + 
-  theme_bw() + 
-  ggtitle("Downloads per stage of the package") +
-  xlab("Date normalized") + 
-  guides(col = FALSE)
-```
-We can observe a tendency to have a decrease of the number of downloads after being includedd in Bioconductor and later it raises again. 
+# Analysis per category
+So for each, the same analysis has been performed:
+ 
+ - [Software analysis](software.html)
+ - [Experminetal data analysis](experimental.html)
+ - [Annotation analysis](annotation.html)
 
 # SessionInfo {.unnumbered}
 
 ```{r sessioninfo}
 sessionInfo()
 ```
-
