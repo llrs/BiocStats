@@ -24,13 +24,10 @@ library("data.table")
 # library("scales")
 ```
 
-# Introduction
-
-Here we are going to analyse the Experimental packages of Bioconductor. See the home of the analysis [here](index.html).
-
 # Load data
 
-First we read the latest data from the Bioconductor project. There are two files, one with the download stats from 2009 until today and another with the download stats of the software packages, we will only use the first one:
+Here we are going to analyse the Experimental data packages of Bioconductor. See the home of the analysis [here](index.html) were we already transormated the data. From that stats we are going to analyse the software category:
+
 
 ```{r stats}
 load("stats.RData")
@@ -48,11 +45,12 @@ First we explore the number of packages being downloaded by month:
 ```{r number, fig.cap="Packages in Bioconductor with downloads"}
 theme_bw <- theme_bw(base_size = 16)
 scal <- scale_x_datetime(date_breaks = "3 months")
+theme <- theme(axis.text.x = element_text(angle = 60, hjust = 1))
 ggplot(stats[, .(Downloads = .N), by = Date], aes(Date, Downloads)) +
   geom_bar(stat = "identity") + 
   theme_bw +
   ggtitle("Packages downloaded") +
-  theme(axis.text.x = element_text(angle = 60, hjust = 1)) + 
+  theme + 
   scal + 
   xlab("")
 ```
@@ -63,25 +61,24 @@ ggplot(stats[, .(Number = sum(Nb_of_downloads)), by = Date], aes(Date, Number)) 
   theme_bw +
   ggtitle("Downloads") +
   scal +
-  theme(axis.text.x=element_text(angle=60, hjust=1)) + 
+  theme +
   xlab("")
 ```
 Even if the number of packages increase exponentially, the number of the downloads from 2011 grows linearly with time. Which indicates that each time a software package must compete with more packages to be downloaded.
 
 ```{r number3, fig.cap="Downloads of packages per package. The error bar indicates the 95% confidence interval."}
 pd <- position_dodge(0.1)
-ggplot(stats[, .(Number = mean(Nb_of_downloads), 
-                  ymin = mean(Nb_of_downloads)-1.96*sd(Nb_of_downloads)/sqrt(.N),
-                  ymax = mean(Nb_of_downloads)+1.96*sd(Nb_of_downloads)/sqrt(.N)), 
+ggplot(stats[, .(Number = mean(Nb_of_downloads),
+                 sem = sd(Nb_of_downloads)/sqrt(.N)),
               by = Date], aes(Date, Number)) +
-  geom_errorbar(aes(ymin = ymin, ymax = ymax), width=.1, position=pd) +
+  geom_errorbar(aes(ymin = Number - sem, ymax = Number + sem), width = .1, position = pd) +
   geom_point() + 
   geom_line() +
   theme_bw +
   ggtitle("Downloads") +
   ylab("Mean download for a package") +
   scal +
-  theme(axis.text.x=element_text(angle=60, hjust=1)) + 
+  theme + 
   xlab("")
 ```
 Here we can apreciate that the number of downloads per package hasn't changed much with time. If something, now there is less dispersion between packages downloads. 
@@ -101,7 +98,7 @@ ggplot(histincorporation, aes(Date, Number)) +
   theme_bw + 
   ggtitle("Packages with first download") +
   scal +
-  theme(axis.text.x=element_text(angle=60, hjust=1)) +
+  theme +
   xlab("")
 ```
 We can see that there were more than 60 packages before 2009 in Bioconductor, and since them occasionally there is a raise to 10 new downloads (Which would be new packages being added). 
@@ -112,7 +109,7 @@ ggplot(histincorporation, aes(Date, Number)) +
   theme_bw + 
   ggtitle("Packages with first download") +
   scal +
-  theme(axis.text.x=element_text(angle=60, hjust=1)) +
+  theme +
   xlab("") + 
   ylim(c(0, 20))
 ```
@@ -130,7 +127,7 @@ ggplot(histDeprecation, aes(Date, Number)) +
   theme_bw + 
   ggtitle("Packages without downloads") +
   scal +
-  theme(axis.text.x=element_text(angle=60, hjust=1)) + 
+  theme + 
   ylab("Last seen packages") +
   xlab("")
 ```
@@ -151,27 +148,36 @@ Packages tend to stay up to 10 years. Not surprisingly the number of packages in
 ## Ratio downloads per IP
 We can start comparing the number of downloads (different from 0) by how many IPs download each package.
 ```{r downloadsMonth, fig.cap = "Downloads and distinct IPs of all months and packages. Each color is a package, the black line represents 2 downloads per IP.", warning=FALSE}
-ggplot(stats, aes(Nb_of_distinct_IPs, Nb_of_downloads, col = Package)) + 
-  geom_point() + 
-  theme_bw + 
-  geom_smooth(method = "lm") + 
-  xlab("Number of distinct IPs") + 
-  ylab("log10(Number of downloads)") + 
-  ggtitle("Downloads by different IP") +
-  geom_abline(slope = 2) + 
-  guides(col = FALSE)
+pd <- position_dodge(0.1)
+ggplot(stats[, .(Number = mean(Nb_of_downloads/Nb_of_distinct_IPs),
+                 sem = sd(Nb_of_downloads/Nb_of_distinct_IPs)/sqrt(.N)), 
+              by = c("Date")], aes(Date, Number)) +
+  geom_point() +
+  geom_errorbar(aes(ymin = Number - sem, 
+                    ymax = Number + sem),
+                width = .1, position = pd) +
+  geom_line() +
+  theme_bw +
+  ggtitle("Downloads per IP") +
+  ylab("Mean downloads per IP") +
+  xlab("") + 
+  theme +
+  scal
 ```
 Not surprisingly most of the package has two downloads from the same IP, one for each Bioconductor release (black line). However, there are some packages where few IPs download many times the same package, which may indicate that these packages are mostly installed in a few locations. 
 ```{r ratio}
-ratio <- stats[, .(slope = coef(lm(Nb_of_downloads~Nb_of_distinct_IPs))[2]), by = Package]
-ratio <- ratio[order(slope, decreasing = TRUE), ]
-ratio <- ratio[!is.na(slope), ]
+ratio <- stats[, .(Mean = mean(Nb_of_downloads/Nb_of_distinct_IPs),
+                   sem = sd(Nb_of_downloads/Nb_of_distinct_IPs)/sqrt(.N),
+                   max = max(Nb_of_downloads/Nb_of_distinct_IPs),
+                   min = min(Nb_of_downloads/Nb_of_distinct_IPs)), 
+              by = c("Package")]
+ratio <- ratio[order(Mean, decreasing = TRUE), ]
 ratio$Package <- as.character(ratio$Package)
 ratio
 ```
 We can see that the package with more downloads from the same IP is `r Biocpkg(ratio[1, 1])`, followed by, `r Biocpkg(ratio[2, 1])`, `r Biocpkg(ratio[3, 1])` and the forth one is `r Biocpkg(ratio[4, 1])`. 
 
-Now we explore if there is some seasons cycles in the downloads, as in figure \@ref(number2) seems to be some cicles. 
+Now we explore if there is some seasons cycles in the downloads, as in figure \@ref(fig:number2) seems to be some cicles. 
 
 ## By date
 
@@ -183,7 +189,7 @@ ggplot(stats, aes(Date, Nb_of_distinct_IPs, col = Package)) +
   ggtitle("IPs") +
   ylab("Distinct IP downloads") +
   scal +
-  theme(axis.text.x=element_text(angle=60, hjust=1)) + 
+  theme + 
   guides(col = FALSE)
 ```
 As we can see there are two groups of packages at the 2009 years, some with low number of IPs and some with bigger number of IPs. As time progress the number of distinct IPs increases for some packages. 
@@ -195,7 +201,7 @@ ggplot(stats, aes(Date, Nb_of_downloads, col = Package)) +
   ggtitle("Downloads per IP") +
   ylab("Downloads") +
   scal +
-  theme(axis.text.x=element_text(angle=60, hjust=1)) + 
+  theme + 
   guides(col = FALSE)
 ```
 Surprisingly some package have a big outburst of downloads to 400k downloads, others to just 100k downloads. But lets focus on the lower end:
@@ -207,7 +213,7 @@ ggplot(stats, aes(Date, Nb_of_downloads, col = Package)) +
   ylab("Downloads") +
   scal +
   ylim(0, 10000)+
-  theme(axis.text.x=element_text(angle=60, hjust=1)) + 
+  theme + 
   guides(col = FALSE)
 ```
 There are many packages close to 0 downloads each month, but most packages has less than 10000 downloads per month:
@@ -219,7 +225,7 @@ ggplot(stats, aes(Date, Nb_of_downloads, col = Package)) +
   ylab("Downloads") +
   scal +
   ylim(0, 2500)+
-  theme(axis.text.x=element_text(angle=60, hjust=1)) + 
+  theme +
   guides(col = FALSE)
 ```
 As we can see, in general the month of the year also influences the number of downloads. So we have that from 2010 the factors influencing the downloads are the year, and the month. 
@@ -232,7 +238,7 @@ ggplot(stats, aes(Date, Nb_of_downloads/Nb_of_distinct_IPs, col = Package)) +
   ggtitle("IPs") +
   ylab("Ratio") +
   scal +
-  theme(axis.text.x=element_text(angle=60, hjust=1)) + 
+  theme +
   guides(col = FALSE)
 ```
 We can see some packages have ocasional raises of downloads per IP. But for small ranges we miss a lot of packages:
@@ -244,27 +250,124 @@ ggplot(stats, aes(Date, Nb_of_downloads/Nb_of_distinct_IPs, col = Package)) +
   ggtitle("IPs") +
   ylab("Ratio") +
   scal +
-  theme(axis.text.x=element_text(angle=60, hjust=1)) + 
+  theme +
   guides(col = FALSE) +
   ylim(1, 5)
 ```
 But most of the packages seem to be more or less constant and around 2.
 
 # Models
-
-One problem to compare the evolution of the packages is that they started at different moments, and as seen with time the number of downloads have been increasing as well as the number of packages. So we need to normalize the starting dates:
-
-```{r normalizeDate, fig.cap = "Normalization of dates and downloads"}
-norm <- stats[, .(Norm = as.numeric(Date)/as.numeric(max(Date)), 
-                   Downloads = Nb_of_downloads/max(Nb_of_downloads)), by = Package]
-ggplot(norm, aes(Norm, Downloads, col = Package)) + 
+## Position in Bioconductor
+We can observe if the packages has been consistently the most downloaded package of Bioconductor:
+```{r normalize1, fig.cap = "Downloads of packages in Bioconductor. "}
+PercDate <- stats[, .(Package, Downloads = Nb_of_downloads/sum(Nb_of_downloads)), by = Date]
+PercDate <- PercDate[order(Date, order(Downloads)), ]
+ggplot(PercDate, aes(Date, Downloads, col = Package)) + 
   geom_line() + 
-  theme_bw() + 
-  ggtitle("Downloads per stage of the package") +
-  xlab("Date normalized") + 
-  guides(col = FALSE)
+  theme_bw + 
+  ggtitle("Downloads of packages by dates") +
+  xlab("") + 
+  ylab("% of downloads") +
+  guides(col = FALSE) +
+  scal + 
+  theme
 ```
-We can observe a tendency to have a decrease of the number of downloads after being includedd in Bioconductor and later it raises again. 
+We can see that usually the percentatge of downloads of a packages doesn't reach 5% of downloads of the category. And that there is a huge differences between packages in the number of downloads. Let's compare the most downloaded package to the other package:
+```{r normalize1b, fig.cap = "Position of packages in Bioconductor"}
+OrdDate <- PercDate[, .(Package, Ord = Downloads/max(Downloads)), by = Date]
+ggplot(OrdDate, aes(Date, Ord, col = Package)) + 
+  geom_line() + 
+  theme_bw + 
+  ggtitle("Downloads of packages by dates") +
+  xlab("") + 
+  ylab("% of the Package more downloaded") +
+  guides(col = FALSE) +
+  scal + 
+  theme
+```
+We can observe that usually there are few package that are closer to the most downloaded packages and lots of them are far from it. We can see the rank between them to be able to see the evolution of downloads along time of a package:
+
+```{r normalize2, fig.cap = "% of packages in Bioconductor. Closer to 1 indicates the top downloaded packages."}
+rankDate <- OrdDate[, .(Package, rank = rank(Ord)/.N), by = Date]
+ggplot(rankDate, aes(Date, rank, col = Package)) + 
+  geom_line() + 
+  theme_bw + 
+  ggtitle("Rank of packages by downloads") +
+  xlab("") + 
+  ylab("Position by downloads") +
+  guides(col = FALSE) +
+  scal + 
+  theme
+```
+Only if we select to follow some package we can track them:
+```{r example1, fig.cap="Evolution of downloads of packages in Bioconductor"}
+packages <- c("ALL", "airway", "Affyhgu133A2Expr", "GSVAdata", 
+              "TCGAWorkflowData", "affydata", "RTCGA.rnaseq", 
+              "SomaticCancerAlterations", "Fletcher2013a")
+ggplot(rankDate[Package %in% packages, ], aes(Date, rank, col = Package))+ 
+  geom_line() + 
+  theme_bw + 
+  ggtitle("Relative rank of packages by downloads") +
+  xlab("") + 
+  ylab("Position by downloads") +
+  scal + 
+  theme
+```
+Here we can see that `r Biocpkg("ALL")` and `r Biocpkg("affydata")` are on the top downloaded packages since 2009. Recently `r Biocpkg("airway")` has grown to reach the top downloaded packages, while other packages haven't reached the top 25% packages by downloads on a month. 
+
+## Package cycle
+
+We can also observe when did a package reach the maximum number of downloads:
+```{r cycle1, fig.cap = "Cycle of packages. Percentatge of downloads of a package along time."}
+PercPack <- stats[, .(Date, Downloads = Nb_of_downloads/sum(Nb_of_downloads)), by = Package]
+ggplot(PercPack, aes(Date, Downloads, col = Package)) + 
+  geom_line() + 
+  theme_bw + 
+  ggtitle("Growth of the packages") +
+  xlab("") + 
+  ylab("Downloads/max(Downloads)") +
+  guides(col = FALSE) +
+  scal + 
+  theme
+```
+Here we can see the date when a package reached the highest number of downloads. For most packages the higher downloads are on the recent months.
+```{r cycle2a, fig.cap = ""}
+OrdPack <- PercPack[, .(Date, rank = Downloads/max(Downloads)), by = Package]
+ggplot(OrdPack, aes(Date, rank, col = Package)) + 
+  geom_line() + 
+  theme_bw + 
+  ggtitle("Growth of the packages") +
+  xlab("") + 
+  ylab("Downloads/max(Downloads)") +
+  guides(col = FALSE) +
+  scal + 
+  theme
+```
+Here we can see when the package hast the most downloads along time. As usuall we need to focus on fewer packages to be able to distinguish between package to see their evolution:
+```{r cycl2, fig.cap = "Cycle of few packages. Position of package downloads respect the maximum downloads of the packages along time."}
+ggplot(OrdPack[Package %in% c(packages, "RTools4TB", "SemSim"), ], 
+       aes(Date, rank, col = Package)) + 
+  geom_line() + 
+  theme_bw + 
+  ggtitle("Growth of the packages") +
+  xlab("") + 
+  ylab("Downloads/max(Downloads)") +
+  scal + 
+  theme
+```
+As expected the packages that keep up with Bioconductor growth have a peak near the end of the serie.
+
+We can combine both models into a single one to have a timeless comparison of the packages. So we will know if the max position reached in Bioconductor is done when there are more  downloads. 
+```{r model, fig.cap="Relative position of the package. Position in Bioconductor downloads and position of package downloads."}
+model <- rankDate[OrdPack, on = c("Package", "Date")]
+ggplot(model[Package %in% packages], aes(i.rank, rank, col = Package)) +
+  geom_point() + 
+  theme_bw + 
+  geom_line() +
+  ylab("Position in Bioconductor") + 
+  xlab("Position in package")
+```
+This is a timeless comparison of the growth of packages in Bioconductor and against themselfs. The higher on the y-axis the higher they have been on Bioconductor, and the higher on the x-axis the most downloads they had. 
 
 # SessionInfo {.unnumbered}
 
