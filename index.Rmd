@@ -37,7 +37,7 @@ For each category a page with the stats of the packages of each category is prov
  - [Annotation stats](http://bioconductor.org/packages/stats/data-annotation.html)
  
 
-As some packages seem to be classified in several categories we first need to classify them.
+We first join them to work easier and compare between them.
 
 ```{r download, cache = FALSE}
 web <- "https://www.bioconductor.org/packages/stats/" # Base url
@@ -79,7 +79,9 @@ ggplot(stats[ , .(Downloads = log10(sum(Nb_of_downloads))), by = c("Package", "C
   theme_bw +
   ylab("log10(Downloads per package)")
 ```
-It seems that Software packages are as much downloaded as Experimental data and Annotations are less The problem is that some packages are erroniously classified in several categories as you can see if we calculate the overlap between packages:
+
+It seems that Software packages are as much downloaded as Experimental data and Annotations are less downloaded.  
+However, there are some packages are erroniously classified in several categories as you can see if we calculate the overlap between packages:
 ```{r intersect}
 length(intersect(software$Package, experimental$Package))
 length(intersect(software$Package, annotation$Package))
@@ -149,6 +151,7 @@ stats$Month <- sapply(stats$Month, monthsConvert)
 stats$Date <- as.POSIXct(as.yearmon(paste(stats$Year, stats$Month, sep = "-")), frac = 1)
 bioc_packages <- c("BiocInstaller", "Biobase", "BiocGenerics", "S4Vectors", "IRanges", "AnnotationDbi")
 stats <- stats[Nb_of_downloads != 0, ] # We remove rows of packages without a download in that month.
+# Convert the data from several categories to one entry in the right category
 stats <- stats[, .(Month = unique(Month), Year = unique(Year), 
                    Category = unique(Category), 
                    Nb_of_distinct_IPs = sum(Nb_of_distinct_IPs), 

@@ -268,28 +268,40 @@ But most of the packages seem to be more or less constant and around 2.
 # Models
 ## Position in Bioconductor
 We can observe if the packages has been consistently the most downloaded package of Bioconductor:
-```{r normalize1, fig.cap = "Position of packages in Bioconductor"}
-norm <- stats[, {maxD = sum(Nb_of_downloads)
-  .SD[, .(Downloads = Nb_of_downloads/maxD), by = Package]}, by = Date]
-norm <- norm[order(Date, order(Downloads)), ]
-ggplot(norm[, .(Package, rank = rank(Downloads)), by = Date], aes(Date, rank, col = Package)) + 
+```{r normalize1, fig.cap = "Downloads of packages in Bioconductor. "}
+PercDate <- stats[, .(Package, Downloads = Nb_of_downloads/sum(Nb_of_downloads)), by = Date]
+PercDate <- PercDate[order(Date, order(Downloads)), ]
+ggplot(PercDate, aes(Date, Downloads, col = Package)) + 
   geom_line() + 
   theme_bw + 
-  ggtitle("Rank of packages by downloads") +
+  ggtitle("Downloads of packages by dates") +
   xlab("") + 
-  ylab("Rank of the package") +
+  ylab("% of downloads") +
   guides(col = FALSE) +
   scal + 
   theme
 ```
-We can observe the increase of the number of packages downloaded, specially in January 2006. The top packages remain more or less same, while the packages less downloaded usually remain so. If we try to see the evolution of all of them it is impossible to distinguish them:
-
-```{r normalize2, fig.cap = "% of packages in Bioconductor. "}
-norm2 <- norm[, .(Package, rank = rank(Downloads)/.N), by = Date]
-ggplot(norm2, aes(Date, rank, col = Package)) + 
+We can see that usually the percentatge of downloads of a packages doesn't reach 5% of downloads of the category. And that there is a huge differences between packages in the number of downloads. Let's compare the most downloaded package to the other package:
+```{r normalize1b, fig.cap = "Position of packages in Bioconductor"}
+OrdDate <- PercDate[, .(Package, Ord = Downloads/max(Downloads)), by = Date]
+ggplot(OrdDate, aes(Date, Ord, col = Package)) + 
   geom_line() + 
   theme_bw + 
-  ggtitle("Relative rank of packages by downloads") +
+  ggtitle("Downloads of packages by dates") +
+  xlab("") + 
+  ylab("% of the Package more downloaded") +
+  guides(col = FALSE) +
+  scal + 
+  theme
+```
+We can observe that usually there are few package that are closer to the most downloaded packages and lots of them are far from it. We can see the rank between them to be able to see the evolution of downloads along time of a package:
+
+```{r normalize2, fig.cap = "% of packages in Bioconductor. Closer to 1 indicates the top downloaded packages."}
+rankDate <- OrdDate[, .(Package, rank = rank(Ord)/.N), by = Date]
+ggplot(rankDate, aes(Date, rank, col = Package)) + 
+  geom_line() + 
+  theme_bw + 
+  ggtitle("Rank of packages by downloads") +
   xlab("") + 
   ylab("Position by downloads") +
   guides(col = FALSE) +
@@ -300,7 +312,7 @@ Only if we select to follow some package we can track them:
 ```{r example1, fig.cap="Evolution of downloads of packages in Bioconductor"}
 packages <- c("limma", "GOSemSim", "BioCor", "Clonality", "Prostar", 
              "rintact", "bioassayR", "DESeq", "DESeq2", "edgeR")
-ggplot(norm2[Package %in% packages, ], aes(Date, rank, col = Package))+ 
+ggplot(rankDate[Package %in% packages, ], aes(Date, rank, col = Package))+ 
   geom_line() + 
   theme_bw + 
   ggtitle("Relative rank of packages by downloads") +
@@ -309,15 +321,14 @@ ggplot(norm2[Package %in% packages, ], aes(Date, rank, col = Package))+
   scal + 
   theme
 ```
+Here we can see that limma is one of the top downloaded packages since 2009, `r Biocpkg("edgeR")` and `r Biocpkg("GOSemSim")` has grown to reach the top downloaded packages, while other packages haven't reached the top 25% packages by downloads on a month. 
 
 ## Package cycle
 
 We can also observe when did a package reach the maximum number of downloads:
-```{r cycle1, fig.cap = "Cycle of packages. Position of package downloads respect the maximum downloads of the packages along time."}
-norm3 <- stats[, {maxD = sum(Nb_of_downloads)
-  .SD[, .(Downloads = Nb_of_downloads/maxD), by = Date]}, by = Package]
-norm4 <- norm3[, .(Date, rank = Downloads/max(Downloads)), by = Package]
-ggplot(norm4, aes(Date, rank, col = Package)) + 
+```{r cycle1, fig.cap = "Cycle of packages. Percentatge of downloads of a package along time."}
+PercPack <- stats[, .(Date, Downloads = Nb_of_downloads/sum(Nb_of_downloads)), by = Package]
+ggplot(PercPack, aes(Date, Downloads, col = Package)) + 
   geom_line() + 
   theme_bw + 
   ggtitle("Growth of the packages") +
@@ -327,9 +338,22 @@ ggplot(norm4, aes(Date, rank, col = Package)) +
   scal + 
   theme
 ```
-As usuall we need to focus on fewer packages to be able to distinguish them:
+Here we can see the date when a package reached the highest number of downloads. For most packages the higher downloads are on the recent months.
+```{r cycle2a, fig.cap = ""}
+OrdPack <- PercPack[, .(Date, rank = Downloads/max(Downloads)), by = Package]
+ggplot(OrdPack, aes(Date, rank, col = Package)) + 
+  geom_line() + 
+  theme_bw + 
+  ggtitle("Growth of the packages") +
+  xlab("") + 
+  ylab("Downloads/max(Downloads)") +
+  guides(col = FALSE) +
+  scal + 
+  theme
+```
+Here we can see when the package hast the most downloads along time. As usuall we need to focus on fewer packages to be able to distinguish between package to see their evolution:
 ```{r cycl2, fig.cap = "Cycle of few packages. Position of package downloads respect the maximum downloads of the packages along time."}
-ggplot(norm4[Package %in% c(packages, "RTools4TB", "SemSim"), ], 
+ggplot(OrdPack[Package %in% c(packages, "RTools4TB", "SemSim"), ], 
        aes(Date, rank, col = Package)) + 
   geom_line() + 
   theme_bw + 
@@ -340,6 +364,18 @@ ggplot(norm4[Package %in% c(packages, "RTools4TB", "SemSim"), ],
   theme
 ```
 As expected the packages that keep up with Bioconductor growth have a peak near the end of the serie. For this reason I added the package `r Biocpkg("SemSim")` and the `r Biocpkg("RTools4TB")` to see that package that has been less and less downloaded.
+
+We can combine both models into a single one to have a timeless comparison of the packages. So we will know if the max position reached in Bioconductor is done when there are more  downloads. 
+```{r model, fig.cap="Relative position of the package. Position in Bioconductor downloads and position of package downloads."}
+model <- rankDate[OrdPack, on = c("Package", "Date")]
+ggplot(model[Package %in% c(packages,"RTools4TB", "SemSim")], aes(i.rank, rank, col = Package)) +
+  geom_point() + 
+  theme_bw + 
+  geom_line() +
+  ylab("Position in Bioconductor") + 
+  xlab("Position in package")
+```
+This is a timeless comparison of the growth of packages in Bioconductor and against themselfs. The higher on the y-axis the higher they have been on Bioconductor, and the higher on the x-axis the most downloads they had. 
 
 # SessionInfo {.unnumbered}
 
