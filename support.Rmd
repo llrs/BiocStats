@@ -71,8 +71,9 @@ barplot(yearPosts)
 We can se an increase of the participation (it doesn't count news or Jobs though)
 
 # Questions
+To retrieve the questions posted for each package first we need to know the questions:
 ```{r questions}
-rep <- round((total_posts-original_posts)/1000) + 3 # To cound news, jobs...
+rep <- round((total_posts-original_posts)/1000) + 3 # To count news, jobs...
 questions <- sapply(seq_len(rep), function(i){
   ipost <- original_posts + (i-1)*1000
   fpost <- original_posts + i*1000
@@ -93,4 +94,5 @@ questions <- sapply(seq_len(rep), function(i){
 questions <- questions[lenghts(questions) == 26]
 save(questions, yesterday, file = "questions.RData")
 ```
+
 
