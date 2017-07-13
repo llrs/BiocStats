@@ -1,0 +1,57 @@
+---
+title: "Bioconductor stats"
+abstract: >
+  Analysis of the stats of the support site of Bioconductor project.
+date: "`r base::date()`"
+output:
+  BiocStyle::html_document2:
+    fig_caption: true
+    toc_float:
+      collapsed: True
+      toc_depth: 3
+author:
+- name: Lluís Revilla
+---
+```{r knitrsetup, message=FALSE, warning=FALSE, include=FALSE}
+knitr::opts_knit$set(root.dir = ".")
+knitr::opts_chunk$set(collapse = TRUE, warning = TRUE, fig.wide = TRUE)
+BiocStyle::markdown()
+options(datatable.print.topn = 10)
+library("BiocStyle")
+library("ggplot2")
+library("data.table")
+library("jsonlite")
+# library("scales")
+```
+
+# Introduction
+
+Here we are going to analyse the usage of the support site of Bioconductor and its relationship with the packages. See the home of the analysis [here](index.html).
+
+We will use the api of the [site](https://support.bioconductor.org/info/api/).
+
+# First post
+
+
+```{r api0}
+base <- "https://support.bioconductor.org/api/"
+post0 <- fromJSON(paste0(base, "stats/day/0"))
+post0$date
+post0$type
+```
+Here we can see that the first post in bioconductor is from 2001, but it must be from the mailing list because it doesn't have a type description.
+
+# First day 
+
+The first day of the support site was 16/09/2014 as you can see [here](https://groups.google.com/forum/#!topic/rbioc-sig-proteomics/3Bmnzx5nsak)
+```{r firstDay}
+post1 <- fromJSON(paste0(base, "stats/date/2014/09/16"))
+(original_posts <- sum(post1$answers, post1$comments, post1$questions))
+```
+
+
+# Today
+```{r today}
+
+```
+
