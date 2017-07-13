@@ -51,7 +51,46 @@ post1 <- fromJSON(paste0(base, "stats/date/2014/09/16"))
 
 
 # Today
+Total amount of post.
 ```{r today}
+yesterday <- gsub("-", "/", Sys.Date()-1) # Upt to yesterday
+posts <- fromJSON(paste0(base, "stats/date/", yesterday))
+(total_posts <- sum(posts$answers, posts$comments, posts$questions))
+```
 
+# Every year
+We can see the participation for each year
+```{r}
+endYear <- paste0(2014:2016, "/12/31")
+yearPosts <- sapply(endYear, function(x){
+  posts <- fromJSON(paste0(base, "stats/date/", x))
+  sum(posts$answers, posts$comments, posts$questions) - original_posts
+})
+barplot(yearPosts)
+```
+We can se an increase of the participation (it doesn't count news or Jobs though)
+
+# Questions
+```{r questions}
+rep <- round((total_posts-original_posts)/1000) + 3 # To cound news, jobs...
+questions <- sapply(seq_len(rep), function(i){
+  ipost <- original_posts + (i-1)*1000
+  fpost <- original_posts + i*1000
+  message("Quering from ", ipost, " to ", fpost)
+  ids <- seq(from = ipost, to = fpost)
+  posts <- sapply(as.character(ids), function(x) {
+    try(p <- fromJSON(paste0(base, "post/", x, "/")), silent = TRUE)
+    if (exists("p")) {
+      if (p$type == "Question") {
+        p
+      }
+    }
+  }, simplify = FALSE)
+  
+  message("Questions retrieved")
+  Sys.sleep(1)
+})
+questions <- questions[lenghts(questions) == 26]
+save(questions, yesterday, file = "questions.RData")
 ```
 
