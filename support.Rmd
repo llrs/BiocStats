@@ -46,16 +46,16 @@ Here we can see that the first post in bioconductor is from 2001, but it must be
 The first day of the support site was 16/09/2014 as you can see [here](https://groups.google.com/forum/#!topic/rbioc-sig-proteomics/3Bmnzx5nsak)
 ```{r firstDay}
 post1 <- fromJSON(paste0(base, "stats/date/2014/09/16"))
-(original_posts <- sum(post1$answers, post1$comments, post1$questions))
+(original_posts <- max(post1$new_posts))
 ```
 
 
 # Today
-Total amount of post.
+Total amount of post is:
 ```{r today}
 yesterday <- gsub("-", "/", Sys.Date()-1) # Upt to yesterday
 posts <- fromJSON(paste0(base, "stats/date/", yesterday))
-(total_posts <- sum(posts$answers, posts$comments, posts$questions))
+(total_posts <- max(posts$new_posts))
 ```
 
 # Every year
@@ -73,7 +73,7 @@ We can se an increase of the participation (it doesn't count news or Jobs though
 # Questions
 To retrieve the questions posted for each package first we need to know the questions:
 ```{r questions}
-rep <- round((total_posts-original_posts)/1000) + 3 # To count news, jobs...
+rep <- round((total_posts-original_posts)/1000)
 questions <- sapply(seq_len(rep), function(i){
   ipost <- original_posts + (i-1)*1000
   fpost <- original_posts + i*1000
@@ -84,15 +84,26 @@ questions <- sapply(seq_len(rep), function(i){
     if (exists("p")) {
       if (p$type == "Question") {
         p
+      } else {
+        invisible(NULL)
       }
     }
   }, simplify = FALSE)
   
   message("Questions retrieved")
   Sys.sleep(1)
-})
-questions <- questions[lenghts(questions) == 26]
+  posts[lengths(posts) == 26]
+}, simplify = FALSE)
+questions <- unlist(questions, recursive = FALSE)
+
 save(questions, yesterday, file = "questions.RData")
+```
+Now that we have the questions we can prepare the stats for each month
+
+```{r}
+# split by tag
+# store comments, answers, view_counts, creation date
+# Group them by month
 ```
 
 

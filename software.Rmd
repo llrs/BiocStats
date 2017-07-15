@@ -27,11 +27,12 @@ library("data.table")
 
 # Load data
 
-Here we are going to analyse the software packages of Bioconductor. See the home of the analysis [here](index.html) were we already transormated the data. From that stats we are going to analyse the software category:
+Here we are going to analyse the software packages of Bioconductor. See the home of the analysis [here](index.html) were we already transformed the data. From that stats we are going to analyse the software category:
 
 ```{r stats}
 load("stats.RData", verbose = TRUE)
 stats <- stats[Category == "Software", ]
+yearly <- yearly[Category == "Software", ]
 stats
 ```
 
@@ -83,7 +84,7 @@ ggplot(stats[, .(Number = mean(Nb_of_downloads),
   theme + 
   xlab("")
 ```
-Here we can apreciate that the number of downloads per package hasn't changed much with time. If something, now there is more dispersion between packages downloads. 
+Here we can appreciate that the number of downloads per package hasn't changed much with time. If something, now there is more dispersion between packages downloads. 
 
 ## Incorporations
 
@@ -144,7 +145,7 @@ timeBioconductor <- unclass(df$Date.y-df$Date.x)/(365*60*60*24)
 hist(timeBioconductor, main = "Time in Bioconductor", xlab = "Years")
 abline(v = mean(timeBioconductor), col = "red")
 ```
-We can see that most deprecated packages are less than a year (I would say around two releases) and some stay on Bioconductor up to 6 years  before beeing removed. Not surprisingly the number of packages incorporated before 2009 and removed from the repository are `r nrow(df) - nrow(deprecation)` packages. But those packages not removed how do they do in Bioconductor?
+We can see that most deprecated packages are less than a year (I would say around two releases) and some stay on Bioconductor up to 6 years  before being removed. Not surprisingly the number of packages incorporated before 2009 and removed from the repository are `r nrow(df) - nrow(deprecation)` packages. But those packages not removed how do they do in Bioconductor?
 
 # Packages downloads
 
@@ -186,7 +187,7 @@ ratio[Package %in% bioc_packages, ]
 ```
 `r Biocpkg("BiocInstaller")` is base package more downloaded per IP, maybe because the is necessary to install the other packages in Bioconductor.
 
-Now we explore if there is some seasons cycles in the downloads, as in figure \@ref(fig:number2) seems to be some cicles. 
+Now we explore if there is some seasons cycles in the downloads, as in figure \@ref(fig:number2) seems to be some cycles. 
 
 ## By date
 
@@ -250,7 +251,7 @@ ggplot(stats, aes(Date, Nb_of_downloads/Nb_of_distinct_IPs, col = Package)) +
   theme + 
   guides(col = FALSE)
 ```
-We can see some packages have ocasional raises of downloads per IP. But for small ranges we miss a lot of packages:
+We can see some packages have occasional raises of downloads per IP. But for small ranges we miss a lot of packages:
 
 ```{r date4, fig.cap="Ratio downloads per IP per package", warning=FALSE}
 ggplot(stats, aes(Date, Nb_of_downloads/Nb_of_distinct_IPs, col = Package)) + 
@@ -264,6 +265,35 @@ ggplot(stats, aes(Date, Nb_of_downloads/Nb_of_distinct_IPs, col = Package)) +
   ylim(1, 5)
 ```
 But most of the packages seem to be more or less constant and around 2.
+
+## By year
+To measure if the same IP has downloaded the same package in several months we can compare if the IPs per year are closer to the IP per month.
+```{r yearly}
+staty <- stats[, .(Nb_of_distinct_IPs = sum(Nb_of_distinct_IPs)), by = c("Year", "Package")]
+year <- staty[yearly, , on = c("Package", "Year")]
+year <- year[, Repeated_IP := Nb_of_distinct_IPs-i.Nb_of_distinct_IPs, by = c("Package", "Year")]
+year <- year[, Repeated_IP_per := Repeated_IP/Nb_of_distinct_IPs*100, by = c("Package", "Year")]
+ggplot(year, aes(Year, Repeated_IP_per)) + 
+  geom_violin() +
+  xlab("") +
+  ylab("Percentatge of repeated IPs") +
+  theme_bw +
+  guides(col = FALSE)
+```
+This gives an idea that most of the IPs don't update all their packages to the newest version of each package, or it could be that as most of the IPs are dynamic they change the measure is not completely reliable 
+
+```{r yearly2}
+year2 <- year[, .(m = mean(Repeated_IP_per), sem = sd(Repeated_IP_per)/sqrt(.N)), by = "Year"]
+ggplot(year2, aes(Year, m)) +
+  geom_bar(stat = "identity") +
+  geom_errorbar(aes(ymin = m - sem, ymax = m + sem), 
+                width = .1, position = pd) + 
+  ylab("Percentatge") +
+  xlab("") +
+  ggtitle("Mean download per ") + 
+  theme_bw
+```
+We can see however that the percentatge of IPs which download the package quite similar for the packages in Bioconductor. It remains also around 17% of the total IPs. 
 
 # Models
 ## Position in Bioconductor
@@ -281,7 +311,7 @@ ggplot(PercDate, aes(Date, Downloads, col = Package)) +
   scal + 
   theme
 ```
-We can see that usually the percentatge of downloads of a packages doesn't reach 5% of downloads of the category. And that there is a huge differences between packages in the number of downloads. Let's compare the most downloaded package to the other package:
+We can see that usually the percentage of downloads of a packages doesn't reach 5% of downloads of the category. And that there is a huge differences between packages in the number of downloads. Let's compare the most downloaded package to the other package:
 ```{r normalize1b, fig.cap = "Position of packages in Bioconductor"}
 OrdDate <- PercDate[, .(Package, Ord = Downloads/max(Downloads)), by = Date]
 ggplot(OrdDate, aes(Date, Ord, col = Package)) + 
@@ -351,7 +381,7 @@ ggplot(OrdPack, aes(Date, rank, col = Package)) +
   scal + 
   theme
 ```
-Here we can see when the package hast the most downloads along time. As usuall we need to focus on fewer packages to be able to distinguish between package to see their evolution:
+Here we can see when the package hast the most downloads along time. As usually we need to focus on fewer packages to be able to distinguish between package to see their evolution:
 ```{r cycl2, fig.cap = "Cycle of few packages. Position of package downloads respect the maximum downloads of the packages along time."}
 ggplot(OrdPack[Package %in% c(packages, "RTools4TB", "SemSim"), ], 
        aes(Date, rank, col = Package)) + 
@@ -363,7 +393,7 @@ ggplot(OrdPack[Package %in% c(packages, "RTools4TB", "SemSim"), ],
   scal + 
   theme
 ```
-As expected the packages that keep up with Bioconductor growth have a peak near the end of the serie. For this reason I added the package `r Biocpkg("SemSim")` and the `r Biocpkg("RTools4TB")` to see that package that has been less and less downloaded.
+As expected the packages that keep up with Bioconductor growth have a peak near the end of the series. For this reason I added the package `r Biocpkg("SemSim")` and the `r Biocpkg("RTools4TB")` to see that package that has been less and less downloaded.
 
 We can combine both models into a single one to have a timeless comparison of the packages. So we will know if the max position reached in Bioconductor is done when there are more  downloads. 
 ```{r model, fig.cap="Relative position of the package. Position in Bioconductor downloads and position of package downloads."}
@@ -375,7 +405,7 @@ ggplot(model[Package %in% c(packages,"RTools4TB", "SemSim")], aes(i.rank, rank, 
   ylab("Position in Bioconductor") + 
   xlab("Position in package")
 ```
-This is a timeless comparison of the growth of packages in Bioconductor and against themselfs. The higher on the y-axis the higher they have been on Bioconductor, and the higher on the x-axis the most downloads they had. 
+This is a timeless comparison of the growth of packages in Bioconductor and against themselves. The higher on the y-axis the higher they have been on Bioconductor, and the higher on the x-axis the most downloads they had. 
 
 # SessionInfo {.unnumbered}
 

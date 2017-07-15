@@ -255,7 +255,34 @@ ggplot(stats, aes(Date, Nb_of_downloads/Nb_of_distinct_IPs, col = Package)) +
   ylim(1, 5)
 ```
 But most of the packages seem to be more or less constant and around 2.
+## By year
+To measure if the same IP has downloaded the same package in several months we can compare if the IPs per year are closer to the IP per month.
+```{r yearly}
+staty <- stats[, .(Nb_of_distinct_IPs = sum(Nb_of_distinct_IPs)), by = c("Year", "Package")]
+year <- staty[yearly, , on = c("Package", "Year")]
+year <- year[, Repeated_IP := Nb_of_distinct_IPs-i.Nb_of_distinct_IPs, by = c("Package", "Year")]
+year <- year[, Repeated_IP_per := Repeated_IP/Nb_of_distinct_IPs*100, by = c("Package", "Year")]
+ggplot(year, aes(Year, Repeated_IP_per)) + 
+  geom_violin() +
+  xlab("") +
+  ylab("Percentatge of repeated IPs") +
+  theme_bw +
+  guides(col = FALSE)
+```
+This gives an idea that most of the IPs don't update all their packages to the newest version of each package, or it could be that as most of the IPs are dynamic they change the measure is not completely reliable 
 
+```{r yearly2}
+year2 <- year[, .(m = mean(Repeated_IP_per), sem = sd(Repeated_IP_per)/sqrt(.N)), by = "Year"]
+ggplot(year2, aes(Year, m)) +
+  geom_bar(stat = "identity") +
+  geom_errorbar(aes(ymin = m - sem, ymax = m + sem), 
+                width = .1, position = pd) + 
+  ylab("Percentatge") +
+  xlab("") +
+  ggtitle("Mean download per ") + 
+  theme_bw
+```
+We can see however that the percentatge of IPs which download the package quite similar for the packages in Bioconductor. It remains also around 17% of the total IPs. 
 # Models
 ## Position in Bioconductor
 We can observe if the packages has been consistently the most downloaded package of Bioconductor:

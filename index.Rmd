@@ -13,11 +13,12 @@ author:
 
 ```{r setup, include=FALSE}
 knitr::opts_knit$set(root.dir = ".")
-knitr::opts_chunk$set(collapse = TRUE, warning = TRUE, fig.wide = TRUE)
+knitr::opts_chunk$set(collapse = TRUE, warning = TRUE)
 library("BiocStyle")
 library("ggplot2")
 library("data.table")
 library("zoo")
+library("plotly")
 ```
 
 # Introduction
@@ -36,8 +37,8 @@ For each category a page with the stats of the packages of each category is prov
  - [Experimental data stats](http://bioconductor.org/packages/stats/data-experiment.html)
  - [Annotation stats](http://bioconductor.org/packages/stats/data-annotation.html)
  
-
-We first join them to work easier and compare between them.
+The project also has a [support site](http://support.bioconductor.org) which has an api to access the data. We will access analyze it too.
+We first join the stats of the downloads and IPs of the packages to work easier and compare between them.
 
 ```{r download, cache = FALSE}
 web <- "https://www.bioconductor.org/packages/stats/" # Base url
@@ -58,7 +59,38 @@ experimental[, Category := "Experimental"]
 annotation[, Category := "Annotation"]
 # Bind
 stats <- rbind(software, experimental, annotation)
+yearly <- stats[Month == "all", ]
 stats <- stats[Month != "all", , ]
+stats[, .(Packages = length(unique(Package))), by = Category]
+```
+However, there are some packages are erroniously classified in several categories.
+You can see it if we calculate the overlap between packages:
+```{r intersect}
+packages <- list(Software = unique(software$Package), 
+                 Experimental = unique(experimental$Package), 
+                 Annotation = unique(annotation$Package))
+f <- function(x, y){
+  length(intersect(x, y))
+}
+vf <- Vectorize(f)
+outer(packages, packages, vf)
+```
+We need to classify better, we will use the total number of downloads to put them in a single category based in the total downloads for each category:
+```{r reclassify}
+# Calculates number of downloads per package and category
+max_cat <- stats[, .(Total = sum(Nb_of_downloads)), by = c("Package", "Category")]
+# Select the category with max downloads per package
+max_cat <- max_cat[, .(Category = Category[which.max(Total)]), by = Package]
+# Join by name
+stats <- stats[max_cat, , on = "Package"]
+yearly <- yearly[max_cat, on = "Package"]
+# Substitute name
+stats <- stats[, -"Category"]
+names(stats)[names(stats) == "i.Category"] <- "Category"
+
+yearly <- yearly[Category == i.Category, ]
+yearly <- yearly[, -"i.Category"]
+stats[, .(Packages = length(unique(Package))), by = Category]
 ```
 
 # Initial exploratory analysis
@@ -66,58 +98,22 @@ stats <- stats[Month != "all", , ]
 We do a little visual exploration of the total downloads per category:
 ```{r downloads1, fig.cap = "Total downloads per Category."}
 theme_bw <- theme_bw(base_size = 16)
-ggplot(stats[ , .(Downloads = sum(Nb_of_downloads)), by = c("Category")]) +
+p <- ggplot(stats[ , .(Downloads = sum(Nb_of_downloads)), by = c("Category")]) +
   geom_bar(aes(Category, log10(Downloads), fill = Category), stat = "identity") + 
   theme_bw +
   ylab("log10(Downloads per category)") + 
   ggtitle("Total downloads per category")
+ggplotly(p, fig.width = 650, fig.height = 325)
 ```
 We can see that Software packages are more downloaded, and Annotation pakcages the least. But is this due to some packages or in general:
 ```{r boxplot1, fig.cap="Boxplot of downloads per package and category."}
-ggplot(stats[ , .(Downloads = log10(sum(Nb_of_downloads))), by = c("Package", "Category")]) +
+p <- ggplot(stats[ , .(Downloads = log10(sum(Nb_of_downloads))), by = c("Package", "Category")]) +
   geom_violin(aes(Category, Downloads, fill = Category)) + 
   theme_bw +
   ylab("log10(Downloads per package)")
+ggplotly(p, fig.width = 650, fig.height = 325)
 ```
 
-It seems that Software packages are as much downloaded as Experimental data and Annotations are less downloaded.  
-However, there are some packages are erroniously classified in several categories as you can see if we calculate the overlap between packages:
-```{r intersect}
-length(intersect(software$Package, experimental$Package))
-length(intersect(software$Package, annotation$Package))
-length(intersect(experimental$Package, annotation$Package))
-```
-We need to classify better, we will use the total number of downloads to put them in a single category based in the total downloads for each category:
-```{r reclassify}
-stats[, .(Packages = length(unique(Package))), by = Category]
-# Calculates number of downloads per package and category
-max_cat <- stats[, .(Total = sum(Nb_of_downloads)), by = c("Package", "Category")]
-# Select the category with max downloads per package
-max_cat <- max_cat[, .(Category = Category[which.max(Total)]), by = Package]
-# Join by name
-stats <- stats[max_cat, , on = "Package"]
-# Substitute name
-stats <- stats[, -"Category"]
-names(stats)[names(stats) == "i.Category"] <- "Category"
-stats[, .(Packages = length(unique(Package))), by = Category]
-```
-Now all the packages are assigned to one category. We look at the boxplot to see if it has changed something:
-```{r downloads2, fig.cap="Total number of downloads."}
-theme_bw <- theme_bw(base_size = 16)
-ggplot(stats[ , .(Downloads = log10(sum(Nb_of_downloads))), by = c("Category")]) +
-  geom_bar(aes(Category, Downloads, fill = Category), stat = "identity") + 
-  theme_bw +
-  ylab("log10(Downloads per category)") + 
-  ggtitle("Total downloads per category")
-```
-
-```{r boxplot2, fig.cap="Boxplot of downloads per package and category after correction."}
-ggplot(stats[ , .(Downloads = log10(sum(Nb_of_downloads))), by = c("Package", "Category")]) +
-  geom_violin(aes(Category, Downloads, fill = Category)) + 
-  theme_bw +
-  ylab("log10(Downloads per package)")
-```
-We can observe that many packages that where in Annotation are now considered Experimental, also some Software packages changed of category compared to Figure \@ref(fig:boxplot1) while the total number of downloads haven't changed (see \@ref(fig:downloads1) ).
 To work more easily, we convert the months to a date:
 ```{r date}
 monthsConvert <- function(x) {
@@ -157,37 +153,39 @@ stats <- stats[, .(Month = unique(Month), Year = unique(Year),
                    Nb_of_distinct_IPs = sum(Nb_of_distinct_IPs), 
                   Nb_of_downloads = sum(Nb_of_downloads)) , 
                by = c("Package", "Date")]
-save(stats, bioc_packages, monthsConvert, file="stats.RData")
+save(stats, yearly, bioc_packages, monthsConvert, file="stats.RData")
 ```
 We have also stored the data for future uses. 
-
 
 We can observe the number of packages downloaded for each category along time:
 ```{r downloaded, fig.cap="Packages downloaded per date and category. For each category the number of packages downloaded are displayed"}
 theme <- theme(axis.text.x = element_text(angle = 60, hjust = 1))
 scal <- scale_x_datetime(date_breaks = "3 months")
-ggplot(stats[, .(Downloaded = .N), by = c("Date", "Category")], aes(Date, Downloaded, color = Category)) +
+p <- ggplot(stats[,  .(Downloaded = .N), by = c("Date", "Category")], aes(Date, Downloaded, color = Category)) +
   geom_line() +
   theme_bw +
   ggtitle("Packages downloaded") +
   theme +
   scal
+ggplotly(p, fig.width = 650, fig.height = 325)
 ```
 We can see that the number of packages downloaded increase consistently for Software packages and at a slower peace also for Experimental data, but the Annnotations show some peaks. This peaks might be new databases added as a package in Bioconductor. 
   
 The number of download per month for each category:
 ```{r downloads, fig.cap="Downloads per date and category. For each category the downloads are displayed"}
-ggplot(stats[, .(Downloads = sum(Nb_of_downloads)), by = c("Date", "Category")], aes(Date, Downloads, color = Category)) +
+p <- ggplot(stats[, .(Downloads = sum(Nb_of_downloads)), by = c("Date", "Category")], aes(Date, Downloads, color = Category)) +
   geom_line() +
   theme_bw +
   ggtitle("Packages downloaded") +
+  xlab("") +
   theme +
   scal
+ggplotly(p, fig.width = 650, fig.height = 325)
 ```
 The number of downloads in the Annotation and Experimental category remains relatively stable compared to Software packages, which since 2011 increase linearly. This suggest that competency for downloads in the software category has increased:
 ```{r competitions, fig.cap="Downloads per package. Mean of the downloads per package per category, the error bar is the standard error of the mean."}
 pd <- position_dodge(0.1)
-ggplot(stats[, .(Number = mean(Nb_of_downloads), 
+p <- ggplot(stats[, .(Number = mean(Nb_of_downloads), 
                   sem = sd(Nb_of_downloads)/sqrt(.N)), 
               by = c("Date", "Category")], 
        aes(Date, Number, color = Category)) +
@@ -201,12 +199,13 @@ ggplot(stats[, .(Number = mean(Nb_of_downloads),
   xlab("") + 
   theme +
   scal
+ggplotly(p, fig.width = 650, fig.height = 325)
 ```
 Looking at the number of downloads per package along time it contradicts our hypothesis that competence for downloads in the Software package has increased. There is now more variation but the mean number of downloads per package remains more constant.  
 We can see that for Annotation package the mean download per packages is the same from 2009. Experimental packages had much larger variation, but nowadays fewer experimental packages are used as we can see from the error bars. In software packages there is much larger variation since two years, but traditionally it had more variation and higher downloads per package than any other category.
 
 ```{r competitionsIP, fig.cap="Downloads per IP. Mean of the downloads per IP per package, the error bars are the standard error of the mean."}
-ggplot(stats[, .(Number = mean(Nb_of_downloads/Nb_of_distinct_IPs),
+p <- ggplot(stats[, .(Number = mean(Nb_of_downloads/Nb_of_distinct_IPs),
                  sem = sd(Nb_of_downloads/Nb_of_distinct_IPs)/sqrt(.N)), 
               by = c("Date", "Category")], 
        aes(Date, Number, color = Category)) +
@@ -220,11 +219,12 @@ ggplot(stats[, .(Number = mean(Nb_of_downloads/Nb_of_distinct_IPs),
   xlab("") + 
   theme +
   scal
+ggplotly(p, fig.width = 650, fig.height = 325)
 ```
 We can see that in some months there is an increase of downloads per IP in all the three categories whil other months the categories don't follow the same pattern. In general the downloads per IP are around 1.5 to 2. 
 
 ```{r competitionsIP2, fig.cap="Downloads per IP. Mean of the downloads per IP per package per category plus the error bars at the 95% CI."}
-ggplot(stats[, .(Number = mean(Nb_of_downloads/Nb_of_distinct_IPs)), 
+p <- ggplot(stats[, .(Number = mean(Nb_of_downloads/Nb_of_distinct_IPs)), 
               by = c("Package", "Category")], 
        aes(Category, Number, color = Category)) +
   geom_violin() +
@@ -233,10 +233,11 @@ ggplot(stats[, .(Number = mean(Nb_of_downloads/Nb_of_distinct_IPs)),
   ylab("Mean downloads per IP") +
   xlab("") + 
   theme
+ggplotly(p, fig.width = 650, fig.height = 325)
 ```
 We can see that there is a variation in the number of downloads per IP in the Software package, there is a very extreme value for a package. 
 ```{r competitionsIP3, fig.cap="Downloads per IP. Mean of the downloads per IP per package per category plus the error bars at the 95% CI."}
-ggplot(stats[, .(Number = mean(Nb_of_downloads/Nb_of_distinct_IPs)), 
+p <- ggplot(stats[, .(Number = mean(Nb_of_downloads/Nb_of_distinct_IPs)), 
               by = c("Package", "Category")], 
        aes(Category, Number, color = Category)) +
   geom_violin() +
@@ -246,6 +247,7 @@ ggplot(stats[, .(Number = mean(Nb_of_downloads/Nb_of_distinct_IPs)),
   xlab("") + 
   theme +
   ylim(c(1, 3))
+ggplotly(p, fig.width = 650, fig.height = 325)
 ```
 Looking closer we can see that most of the packages are downloaded between 1 or twice per IP each month where the package is downloaded. 
 
@@ -255,6 +257,10 @@ For each category a similar analysis has been performed:
  - [Software analysis](software.html)
  - [Experminetal data analysis](experimental.html)
  - [Annotation analysis](annotation.html)
+
+# Analysis support site
+
+To analyse the support site relation with the packages we first downloaded and classify the data as described [here](support.html).
 
 # SessionInfo {.unnumbered}
 
