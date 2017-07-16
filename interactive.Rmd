@@ -1,0 +1,126 @@
+---
+title: "Bioconductor Interactive stats"
+abstract: >
+  Interactive plots about the packages in Bioconductor project.
+date: "`r base::date()`"
+output:
+  BiocStyle::html_document2:
+    fig_caption: true
+    toc_float:
+      collapsed: True
+      toc_depth: 3
+author:
+- name: Lluís Revilla
+---
+```{r knitrsetup, message=FALSE, warning=FALSE, include=FALSE}
+knitr::opts_knit$set(root.dir = ".")
+knitr::opts_chunk$set(collapse = TRUE, warning = TRUE, fig.wide = TRUE)
+BiocStyle::markdown()
+options(datatable.print.topn = 10)
+library("BiocStyle")
+library("ggplot2")
+library("data.table")
+library("plotly")
+library("crosstalk")
+```
+
+# Introduction
+
+This page hold interactive plots from the analyis on packages in Bioconductor [^Recommended Chrome but not Firefox]. For static plot one can look at the pages for each category [here](index.html). Many thanks to Carson Sievert for his [guide](https://talks.cpsievert.me/20170125/demo.html)
+
+At the moment for a better interactive plots I am using [ggplot2](https://github.com/tidyverse/ggplot2) and [plotly](https://github.com/ropensci/plotly) from github.
+
+# Select category
+
+Please select category of packages
+
+```{r, echo=FALSE}
+load("stats.RData")
+stats <- stats[Category == "Experimental", ]
+category <- SharedData$new(stats, ~Category, "Selected categories")
+stats2 <- SharedData$new(stats, ~Package, "Selected packages")
+theme_bw <- theme_bw(base_size = 16)
+theme <- theme(axis.text.x = element_text(angle = 60, hjust = 1))
+scal <- scale_x_datetime(date_breaks = "3 months")
+
+
+p <- ggplot(stats2, aes(Date, Nb_of_distinct_IPs, col = Package)) + 
+  geom_line() + 
+  theme_bw +
+  ggtitle("IPs") +
+  ylab("Distinct IP downloads") +
+  scal +
+  theme + 
+  guides(col = FALSE)
+p %>%
+  ggplotly(tooltip = c("Date", "Nb_of_distinct_IPs", "Package"), width = 1200, height = 600) %>%
+  highlight(
+    on = "plotly_click", 
+    off = "plotly_doubleclick", 
+    selectize = TRUE,
+  )
+# 
+# ggplot(stats, aes(Date, Nb_of_downloads, col = Package)) + 
+#   geom_line() + 
+#   theme_bw +
+#   ggtitle("Package Downloads") +
+#   ylab("Downloads") +
+#   scal +
+#   theme + 
+#   guides(col = FALSE)
+# 
+# ggplot(stats, aes(Date, Nb_of_downloads/Nb_of_distinct_IPs, col = Package)) + 
+#   geom_line() + 
+#   theme_bw +
+#   ggtitle("Spread of downloads") +
+#   ylab("Downloads per IPs") +
+#   scal +
+#   theme + 
+#   guides(col = FALSE)
+# PercDate <- stats[, .(Package, Downloads = Nb_of_downloads/sum(Nb_of_downloads)), by = Date]
+# PercDate <- PercDate[order(Date, order(Downloads)), ]
+# OrdDate <- PercDate[, .(Package, Ord = Downloads/max(Downloads)), by = Date]
+# rankDate <- OrdDate[, .(Package, rank = rank(Ord)/.N), by = Date]
+# ggplot(rankDate, aes(Date, rank, col = Package)) + 
+#   geom_line() + 
+#   theme_bw + 
+#   ggtitle("Rank of packages by downloads") +
+#   xlab("") + 
+#   ylab("Position by downloads") +
+#   guides(col = FALSE) +
+#   scal + 
+#   theme
+# PercPack <- stats[, .(Date, Downloads = Nb_of_downloads/sum(Nb_of_downloads)), by = Package]
+# OrdPack <- PercPack[, .(Date, rank = Downloads/max(Downloads)), by = Package]
+# ggplot(OrdPack, aes(Date, rank, col = Package)) + 
+#   geom_line() + 
+#   theme_bw + 
+#   ggtitle("Growth of the packages") +
+#   xlab("") + 
+#   ylab("Downloads/max(Downloads)") +
+#   guides(col = FALSE) +
+#   scal + 
+#   theme
+# 
+# model <- rankDate[OrdPack, on = c("Package", "Date")]
+# ggplot(model[Package %in% c(packages,"RTools4TB", "SemSim")], aes(i.rank, rank, col = Package)) +
+#   geom_point() + 
+#   theme_bw + 
+#   geom_line() +
+#   ylab("Position in Bioconductor") + 
+#   xlab("Position in package")
+# 
+# p <- ggplot(tx) +
+#     geom_line(aes(x = date, y = median, group = city))
+# 
+# p %>%
+#     ggplotly(tooltip = "city") %>%
+#     highlight(
+#         on = "plotly_hover", 
+#         off = "plotly_doubleclick", 
+#         dynamic = TRUE,
+#         persistent = TRUE,
+#         selectize = TRUE
+#     )
+```
+
