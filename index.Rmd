@@ -18,7 +18,6 @@ library("BiocStyle")
 library("ggplot2")
 library("data.table")
 library("zoo")
-library("plotly")
 ```
 
 # Introduction
@@ -103,7 +102,7 @@ p <- ggplot(stats[ , .(Downloads = sum(Nb_of_downloads)), by = c("Category")]) +
   theme_bw +
   ylab("log10(Downloads per category)") + 
   ggtitle("Total downloads per category")
-ggplotly(p, fig.width = 650, fig.height = 325)
+print(p)
 ```
 We can see that Software packages are more downloaded, and Annotation pakcages the least. But is this due to some packages or in general:
 ```{r boxplot1, fig.cap="Boxplot of downloads per package and category."}
@@ -111,7 +110,7 @@ p <- ggplot(stats[ , .(Downloads = log10(sum(Nb_of_downloads))), by = c("Package
   geom_violin(aes(Category, Downloads, fill = Category)) + 
   theme_bw +
   ylab("log10(Downloads per package)")
-ggplotly(p, fig.width = 650, fig.height = 325)
+print(p)
 ```
 
 To work more easily, we convert the months to a date:
@@ -167,7 +166,7 @@ p <- ggplot(stats[,  .(Downloaded = .N), by = c("Date", "Category")], aes(Date, 
   ggtitle("Packages downloaded") +
   theme +
   scal
-ggplotly(p, fig.width = 650, fig.height = 325)
+print(p)
 ```
 We can see that the number of packages downloaded increase consistently for Software packages and at a slower peace also for Experimental data, but the Annnotations show some peaks. This peaks might be new databases added as a package in Bioconductor. 
   
@@ -180,7 +179,7 @@ p <- ggplot(stats[, .(Downloads = sum(Nb_of_downloads)), by = c("Date", "Categor
   xlab("") +
   theme +
   scal
-ggplotly(p, fig.width = 650, fig.height = 325)
+print(p)
 ```
 The number of downloads in the Annotation and Experimental category remains relatively stable compared to Software packages, which since 2011 increase linearly. This suggest that competency for downloads in the software category has increased:
 ```{r competitions, fig.cap="Downloads per package. Mean of the downloads per package per category, the error bar is the standard error of the mean."}
@@ -199,7 +198,7 @@ p <- ggplot(stats[, .(Number = mean(Nb_of_downloads),
   xlab("") + 
   theme +
   scal
-ggplotly(p, fig.width = 650, fig.height = 325)
+print(p)
 ```
 Looking at the number of downloads per package along time it contradicts our hypothesis that competence for downloads in the Software package has increased. There is now more variation but the mean number of downloads per package remains more constant.  
 We can see that for Annotation package the mean download per packages is the same from 2009. Experimental packages had much larger variation, but nowadays fewer experimental packages are used as we can see from the error bars. In software packages there is much larger variation since two years, but traditionally it had more variation and higher downloads per package than any other category.
@@ -219,7 +218,7 @@ p <- ggplot(stats[, .(Number = mean(Nb_of_downloads/Nb_of_distinct_IPs),
   xlab("") + 
   theme +
   scal
-ggplotly(p, fig.width = 650, fig.height = 325)
+print(p)
 ```
 We can see that in some months there is an increase of downloads per IP in all the three categories whil other months the categories don't follow the same pattern. In general the downloads per IP are around 1.5 to 2. 
 
@@ -233,7 +232,7 @@ p <- ggplot(stats[, .(Number = mean(Nb_of_downloads/Nb_of_distinct_IPs)),
   ylab("Mean downloads per IP") +
   xlab("") + 
   theme
-ggplotly(p, fig.width = 650, fig.height = 325)
+print(p)
 ```
 We can see that there is a variation in the number of downloads per IP in the Software package, there is a very extreme value for a package. 
 ```{r competitionsIP3, fig.cap="Downloads per IP. Mean of the downloads per IP per package per category plus the error bars at the 95% CI."}
@@ -247,7 +246,7 @@ p <- ggplot(stats[, .(Number = mean(Nb_of_downloads/Nb_of_distinct_IPs)),
   xlab("") + 
   theme +
   ylim(c(1, 3))
-ggplotly(p, fig.width = 650, fig.height = 325)
+print(p)
 ```
 Looking closer we can see that most of the packages are downloaded between 1 or twice per IP each month where the package is downloaded. 
 
