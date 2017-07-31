@@ -396,9 +396,11 @@ ggplot(OrdPack[Package %in% c(packages, "RTools4TB", "SemSim"), ],
 As expected the packages that keep up with Bioconductor growth have a peak near the end of the series. For this reason I added the package `r Biocpkg("SemSim")` and the `r Biocpkg("RTools4TB")` to see that package that has been less and less downloaded.
 
 We can combine both models into a single one to have a timeless comparison of the packages. So we will know if the max position reached in Bioconductor is done when there are more  downloads. 
-```{r model, fig.cap="Relative position of the package. Position in Bioconductor downloads and position of package downloads."}
+```{r model, fig.cap="Relative position of the packages. Position in Bioconductor downloads and position of package downloads."}
 model <- rankDate[OrdPack, on = c("Package", "Date")]
-ggplot(model[Package %in% c(packages,"RTools4TB", "SemSim")], aes(i.rank, rank, col = Package)) +
+setnames(model, "rank", "rank.B")
+setnames(model, "i.rank", "rank.P")
+ggplot(model[Package %in% c(packages,"RTools4TB", "SemSim")], aes(rank.P, rank.B, col = Package)) +
   geom_point() + 
   theme_bw + 
   geom_line() +
@@ -406,6 +408,24 @@ ggplot(model[Package %in% c(packages,"RTools4TB", "SemSim")], aes(i.rank, rank, 
   xlab("Position in package")
 ```
 This is a timeless comparison of the growth of packages in Bioconductor and against themselves. The higher on the y-axis the higher they have been on Bioconductor, and the higher on the x-axis the most downloads they had. 
+Next we add the time as a factor so we standarize by the time a package has been in Bioconductor. We have omitted months with 0 downloads of a package so this might bias a bit the ranking.
+```{r model2, fig.cap="Relative position of the packages. Position relative to Bioconductor and itself compared to date."}
+model[, rank.D := rank(as.numeric(Date))/.N, by = Package]
+ggplot(model[Package %in% c(packages,"RTools4TB", "SemSim")], aes(rank.D, rank.B, col = Package)) +
+  geom_point() + 
+  theme_bw + 
+  geom_line() +
+  xlab("By date") + 
+  ylab("Position in Bioconductor")
+  
+ggplot(model[Package %in%  c(packages,"RTools4TB", "SemSim")], aes(rank.D, rank.P, col = Package)) +
+  geom_point() + 
+  theme_bw + 
+  geom_line() +
+  xlab("By date") + 
+  ylab("Position in Package")
+```
+We can observe that some packages climb to the top of Bioconductor sooner than others and some climb and then decrease the number of downloads proportional to the the number of downloads in Bioconductor.
 
 # SessionInfo {.unnumbered}
 
