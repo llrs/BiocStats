@@ -250,6 +250,32 @@ print(p)
 ```
 Looking closer we can see that most of the packages are downloaded between 1 or twice per IP each month where the package is downloaded. 
 
+# Updates
+
+We can explore if the packages has been updated thorough the year by the same IP.
+```{r update, fig.cap="Package update. Mean percentatge of the installation of the same package in a year by the same IP."}
+staty <- stats[, .(Nb_of_distinct_IPs = sum(Nb_of_distinct_IPs)), by = c("Year", "Package", "Category")]
+year <- staty[yearly, , on = c("Package", "Year")]
+year[, Repeated_IP := Nb_of_distinct_IPs-i.Nb_of_distinct_IPs, by =  c("Year", "Package", "Category")]
+year[, Repeated_IP_per := Repeated_IP/Nb_of_distinct_IPs*100, by =  c("Year", "Package", "Category")]
+year2 <- year[, .(m = mean(Repeated_IP_per), sem = sd(Repeated_IP_per)/sqrt(.N)), by = c("Year", "Category")]
+year2$Year <- as.numeric(year2$Year)
+d <- date()
+thisYear <- as.numeric(substr(d, nchar(d)-3, nchar(d)))
+ggplot(year2, aes(Year, m, col = Category)) +
+  geom_line() +
+  geom_point() +
+  geom_errorbar(aes(ymin = m - sem, ymax = m + sem), 
+                width = .1) + 
+  ylim(c(0, 26)) +
+  ylab("Percentatge") +
+  xlab("") +
+  ggtitle("Update from the same IP") + 
+  theme_bw +
+  scale_x_continuous(breaks = seq(2009, thisYear, 1))
+```
+Experimental and software packages tend to be updated around the 20% while annotation packages historically have been less updated from the same IP. 
+
 # Analysis per category
 For each category a similar analysis has been performed:
  
