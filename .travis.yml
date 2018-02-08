@@ -4,7 +4,7 @@ language: R
 sudo: false
 cache: packages
 script:
-  make
+  make all
 deploy:
   provider: pages
   skip-cleanup: true
