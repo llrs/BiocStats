@@ -4,7 +4,7 @@ abstract: >
   Analysis of the stats of the Experimental packages in Bioconductor project.
 date: "`r base::date()`"
 output:
-  BiocStyle::html_document2:
+  BiocStyle::html_document:
     fig_caption: true
     toc_float:
       collapsed: True

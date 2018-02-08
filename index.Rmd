@@ -2,7 +2,7 @@
 title: "Bioconductor stats"
 date: "`r base::date()`"
 output:
-  BiocStyle::html_document2:
+  BiocStyle::html_document:
     fig_caption: true
     toc_float:
       collapsed: True
