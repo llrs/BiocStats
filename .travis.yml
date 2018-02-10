@@ -4,11 +4,11 @@ language: R
 sudo: false
 cache: packages
 script:
-  make all
+  - make all
 deploy:
   provider: pages
   skip-cleanup: true
   github-token: $GITHUB_TOKEN  # Set in travis-ci.org dashboard, marked secure
   keep-history: false
   on:
-    branch: gh-pages
+    branch: master
