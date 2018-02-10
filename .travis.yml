@@ -5,6 +5,19 @@ sudo: false
 cache: packages
 script:
   - make all
+r_packages:
+  ggplot2
+  data.table
+  dtplyr
+  scales
+  rmarkdown
+  plotly
+  jsonlite
+  zoo
+bioc_packages:
+  BiocStyle
+before_install:
+  Rscript -e 'update.packages(ask = FALSE)'
 deploy:
   provider: pages
   skip-cleanup: true
@@ -12,3 +25,7 @@ deploy:
   keep-history: false
   on:
     branch: master
+notifications:
+  email:
+    on_success: change
+    on_failure: change
